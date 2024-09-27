@@ -1,4 +1,5 @@
 
+export CUDA_VISIBLE_DEVICES=1
 seed=0
 gpu_id=0
 dset=malaria

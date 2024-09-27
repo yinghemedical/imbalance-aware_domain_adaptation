@@ -26,7 +26,7 @@ import argparse
 
 from helper_utils.logger import Logger
 from helper_utils.sampler import ImbalancedDatasetSampler
-
+from aim import Run,Text
 from helper_utils.EarlyStopping import EarlyStopping
 from helper_utils.tools import testing_sperm_slides, validation_loss, calc_transfer_loss, Entropy,op_copy,obtain_label,lr_scheduler
 from helper_utils.tools import op_copy,obtain_label,lr_scheduler
@@ -117,7 +117,7 @@ def network_setup(config):
     return base_network,base_network_source, ad_net, optimizer
 
 
-def train(config, dset_loaders):
+def train(config, dset_loaders,run:Run):
     # class_imb_weight = torch.FloatTensor(comepute_class_weight_pytorch()).cuda()
     class_num = config["network"]["params"]["class_num"]
 
@@ -126,7 +126,7 @@ def train(config, dset_loaders):
         a[pos] = 1.0
         return a
 
-    logger = Logger(config["logs_path"] + "tensorboard/" + config['timestamp'])
+    # logger = Logger(config["logs_path"] + "tensorboard/" + config['timestamp'])
 
     early_stopping = EarlyStopping(patience=config["patience"], verbose=True)
 
@@ -236,15 +236,17 @@ def train(config, dset_loaders):
         total_loss_numpy = total_loss.clone().cpu().detach().numpy()
         entropy_numpy = torch.sum(entropy).clone().cpu().detach().numpy()
 
-        # info = {'total_loss': total_loss_numpy.item(),
-        #         'classifier_loss': classifier_loss_numpy.item(), 'transfer_loss': transfer_loss_numpy.item(),
-        #         'entropy': entropy_numpy.item(),
-        #
-        #         'valid_source_loss': val_info['val_loss'], 'valid_source_acc': val_info['val_accuracy']
-        #         }
+        info = {'total_loss': total_loss_numpy.item(),
+                'classifier_loss': classifier_loss_numpy.item(), 'transfer_loss': transfer_loss_numpy.item(),
+                'entropy': entropy_numpy.item(),
+        
+                'valid_source_loss': val_info['val_loss'], 'valid_source_acc': val_info['val_accuracy']
+                }
         # for tag, value in info.items():
         #     logger.scalar_summary(tag, value, itr)
-
+        if 'val_acc_2_class' in val_info:
+            info['val_2class_accuracy']=val_info['val_acc_2_class']
+        run.track(info,step=itr)
         with open(config["logs_path"] + '/loss_values_.csv', mode='a') as file:
             csv_writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
 
@@ -257,7 +259,7 @@ def train(config, dset_loaders):
     return config
 
 
-def test(config, dset_loaders, model_path_for_testing=None):
+def test(config, dset_loaders,run:Run, model_path_for_testing=None):
     config['is_training']= False
     if model_path_for_testing:
         model = torch.load(model_path_for_testing)
@@ -274,13 +276,15 @@ def test(config, dset_loaders, model_path_for_testing=None):
                                 num_classes=config["network"]["params"]["class_num"],
                                 logs_path=config['logs_path'], is_training=config['is_training'])
 
-
-    print_msg("Final Model " + "| Val loss: " +  str(val_info['val_loss']) + str( "| Val Accuracy: ") +str(
-          val_info['val_accuracy'])+ ("| 2 class acc:"+str(val_info['val_acc_2_class']) if 'val_acc_2_class' in val_info else "") ,config["out_file"])
-    print_msg("Final Model " + "| Test loss: " + str(test_info['val_loss']) + str("| Test Accuracy: ") +
-              str(test_info['val_accuracy']) + (
-                  "| 2 class acc:" + str(test_info['val_acc_2_class']) if 'val_acc_2_class' in test_info else ""),
-              config["out_file"])
+    print_str="Final Model " + "| Val loss: " +  str(val_info['val_loss']) + str( "| Val Accuracy: ") +str(
+          val_info['val_accuracy'])+ ("| 2 class acc:"+str(val_info['val_acc_2_class']) if 'val_acc_2_class' in val_info else "")
+    print_msg(print_str ,config["out_file"])
+    aim_text = Text(print_str or "")
+    run.track(aim_text, name='val result', step=0)
+    print_str="Final Model " + "| Test loss: " + str(test_info['val_loss']) + str("| Test Accuracy: ")+str(test_info['val_accuracy']) + ("| 2 class acc:" + str(test_info['val_acc_2_class']) if 'val_acc_2_class' in test_info else "")
+    print_msg(print_str ,config["out_file"])
+    aim_text = Text(print_str or "")
+    run.track(aim_text, name='test result', step=0)
 
 
 
@@ -529,9 +533,14 @@ def main():
     ####################################
     with open(config["logs_path"] + "args.yml", "w") as f:
         yaml.dump(args, f)
-
+    
     dset_loaders = data_setup(config)
-
+    # run = Run(repo="/mnt/sdc2/liangjun/projects/liangjun/aim_med",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
+    # run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
+    run = Run()
+    run.name="mdnet-nos-"+dataset+"-"+args.arch+"-"+trial_number
+    hparams =args.__dict__
+    run["hparams"]=hparams
     if is_training:
         print()
         print("=" * 50)
@@ -539,13 +548,13 @@ def main():
         print("=" * 50)
         print()
 
-        train(config, dset_loaders)
+        train(config, dset_loaders,run)
         print()
         print("=" * 50)
         print(" " * 15, "Testing Started")
         print("=" * 50)
         print()
-        test(config, dset_loaders)
+        test(config, dset_loaders,run)
     else:
         print()
         print("=" * 50)
@@ -553,7 +562,7 @@ def main():
         print("=" * 50)
         print()
 
-        test(config, dset_loaders, model_path_for_testing=model_path_for_testing)
+        test(config, dset_loaders,run, model_path_for_testing=model_path_for_testing)
 
 
 if __name__ == "__main__":

@@ -152,3 +152,5 @@ experiments/submitted_models/
 !/figures/
 !/figures/2.png
 !/figures/1.jpg
+data/
+.aim/

@@ -206,8 +206,8 @@ def class_5_to2(all_label_numpy,predict_numpy):
                 acc += cm_bnb[i][j]
             sum_ += cm_bnb[i][j]
 
-    acc = acc * 100 / sum_
-    print("2 class Accuracy = ", acc, "%")
+    acc = acc  / sum_
+    print("2 class Accuracy = ", acc)
 
     return cm_bnb, acc
 

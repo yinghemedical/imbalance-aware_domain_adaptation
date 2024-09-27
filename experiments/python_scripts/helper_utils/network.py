@@ -182,7 +182,7 @@ class XceptionFc(nn.Module):
         super(XceptionFc, self).__init__()
         # model_xception = xception(pretrained= True)
         model_xception = xception(num_classes=1000, pretrained='imagenet')
-
+        print(class_num)
         # model_xception = models.resnet_dict[resnet_name](pretrained=True)
         self.conv1 = model_xception.conv1
         self.bn1 = model_xception.bn1

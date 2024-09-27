@@ -7,7 +7,7 @@ python -u experiments/python_scripts/train_md_nets.py --mode train \
               --seed $seed --num_iterations 10000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
               --dset sperm --s_dset sd4 --t_dset sd3_slides \
               --s_dset_txt "data/sperm/sd4/sd4_source.txt" --sv_dset_txt "data/sperm/sd4/sd4_validation.txt" \
-              --t_dset_txt "data/sperm/sd3/sd3_patient_target_temp.txt" \
+              --t_dset_txt "data/sperm/sd3/sd3_patient_target.txt" \
               --no_of_classes 2 --output_dir "experiments"  --gpu_id "0" --arch Xception\
               --target_labelled false \
               --sperm_patient_data_clinicians_annotations 'data/sperm/sperm_patient_data_clinicians_annotations.csv'
@@ -21,7 +21,7 @@ python -u experiments/python_scripts/train_md_nets.py --mode train \
               --seed $seed --num_iterations 10000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
               --dset sperm --s_dset sd4 --t_dset sd2_slides \
               --s_dset_txt "data/sperm/sd4/sd4_source.txt" --sv_dset_txt "data/sperm/sd4/sd4_validation.txt" \
-              --t_dset_txt "data/sperm/sd2/sd2_patient_target_temp.txt" \
+              --t_dset_txt "data/sperm/sd2/sd2_patient_target.txt" \
               --no_of_classes 2 --output_dir "experiments"  --gpu_id "0" --arch Xception\
               --target_labelled false \
               --sperm_patient_data_clinicians_annotations 'data/sperm/sperm_patient_data_clinicians_annotations.csv'
@@ -35,7 +35,7 @@ python -u experiments/python_scripts/train_md_nets.py --mode train \
               --seed $seed --num_iterations 10000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
               --dset sperm --s_dset sd4 --t_dset sd1_slides \
               --s_dset_txt "data/sperm/sd4/sd4_source.txt" --sv_dset_txt "data/sperm/sd4/sd4_validation.txt" \
-              --t_dset_txt "data/sperm/sd1/sd1_patient_target_temp.txt" \
+              --t_dset_txt "data/sperm/sd1/sd1_patient_target.txt" \
               --no_of_classes 2 --output_dir "experiments"  --gpu_id "0" --arch Xception\
               --target_labelled false \
               --sperm_patient_data_clinicians_annotations 'data/sperm/sperm_patient_data_clinicians_annotations.csv'

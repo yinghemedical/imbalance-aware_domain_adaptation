@@ -20,7 +20,7 @@ import yaml
 from torch.utils.data import DataLoader
 import helper_utils.lr_schedule as lr_schedule
 from helper_utils.data_list_m import ImageList
-
+from aim import Run,Text
 import argparse
 
 from helper_utils.logger import Logger
@@ -110,10 +110,10 @@ def network_setup(config):
     return base_network, ad_net, schedule_param, lr_scheduler, optimizer
 
 
-def train(config, dset_loaders):
+def train(config, dset_loaders,run:Run):
     # class_imb_weight = torch.FloatTensor(comepute_class_weight_pytorch()).cuda()
 
-    logger = Logger(config["logs_path"] + "tensorboard/" + config['timestamp'])
+    # logger = Logger(config["logs_path"] + "tensorboard/" + config['timestamp'])
 
     early_stopping = EarlyStopping(patience=config["patience"], verbose=True)
 
@@ -216,10 +216,13 @@ def train(config, dset_loaders):
                 'classifier_loss': classifier_loss_numpy.item(), 'transfer_loss': transfer_loss_numpy.item(),
                 'entropy': entropy_numpy.item(),
 
-                'valid_source_loss': val_info['val_loss'], 'valid_source_acc': val_info['val_accuracy']
+                'valid_source_loss': val_info['val_loss'], 'valid_source_acc': val_info['val_accuracy'],
                 }
-        for tag, value in info.items():
-            logger.scalar_summary(tag, value, itr)
+        if 'val_acc_2_class' in val_info:
+            info['val_2class_accuracy']=val_info['val_acc_2_class']
+        run.track(info,step=itr)
+        # for tag, value in info.items():
+        #     logger.scalar_summary(tag, value, itr)
 
         with open(config["logs_path"] + '/loss_values_.csv', mode='a') as file:
             csv_writer = csv.writer(file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
@@ -246,7 +249,7 @@ def train(config, dset_loaders):
     return config
 
 
-def test(config, dset_loaders, model_path_for_testing=None):
+def test(config, dset_loaders,run:Run, model_path_for_testing=None):
     if model_path_for_testing:
         model = torch.load(model_path_for_testing)
     else:
@@ -258,12 +261,16 @@ def test(config, dset_loaders, model_path_for_testing=None):
                                logs_path=config['logs_path'], is_training=config['is_training'])
 
     if config["network"]["params"]["class_num"] == 5 and 'embryo' in config["dataset"]:
-        print("Final Model ", "| Val loss: ", val_info['val_loss'], "| Val Accuracy: ",
-              val_info['val_accuracy'], "| 2 Class Val Accuracy: ", val_info['val_acc_2_class'])
+        print_str="Final Model "+ "| Val loss: "+str(val_info['val_loss'])+"| Val Accuracy: "+str(val_info['val_accuracy'])+"| 2 Class Val Accuracy: "+str(val_info['val_acc_2_class'])
+        print(print_str)
+        
+        # aim_text = Text("Final Model ")
+        # run.track(aim_text, name='text', step=0)
     else:
-        print("Final Model ", "| Val loss: ", val_info['val_loss'], "| Val Accuracy: ",
-              val_info['val_accuracy'])
-
+        print_str="Final Model "+"| Val loss: "+str(val_info['val_loss'])+ "| Val Accuracy: "+str(val_info['val_accuracy'])
+        print(print_str)
+    aim_text = Text(print_str or "")
+    run.track(aim_text, name='val result', step=0)
     if config["dataset"] == "sperm" and not config["data"]["target"]["labelled"]:
         testing_sperm_slides(dset_loaders, model, config['logs_path'], config["clinicians_annotation"],
                              config["network"]["params"]["class_num"])
@@ -273,12 +280,13 @@ def test(config, dset_loaders, model_path_for_testing=None):
                                     logs_path=config['logs_path'], is_training=config['is_training'])
 
         if config["network"]["params"]["class_num"] == 5 and 'embryo' in config["dataset"]:
-            print("Final Model ", "| Test loss: ", test_info['val_loss'], "| Test Accuracy: ",
-                  test_info['val_accuracy'], "| 2 Class Test Accuracy: ", test_info['val_acc_2_class'])
+            print_str="Final Model "+"| Test loss: "+str(test_info['val_loss'])+"| Test Accuracy: "+str(test_info['val_accuracy'])+ "| 2 Class Test Accuracy: "+ str(test_info['val_acc_2_class'])
+            print(print_str)
         else:
-            print("Final Model ", "| Test loss: ", test_info['val_loss'], "| Test Accuracy: ",
-                  test_info['val_accuracy'])
-
+            print_str="Final Model "+"| Test loss: "+str(test_info['val_loss'])+"| Test Accuracy: "+str(test_info['val_accuracy'])
+            print(print_str)
+    aim_text = Text(print_str or "")
+    run.track(aim_text, name='test result', step=0)
 def parge_args():
     parser = argparse.ArgumentParser()
 
@@ -394,10 +402,10 @@ def main():
     set_deterministic_settings(seed=args.seed)
 
     dataset = args.dset
-
+    
     log_output_dir_root = args.output_dir + '/logs/' + dataset + '/'
     models_output_dir_root = args.output_dir + '/models/' + dataset + '/'
-
+    
     # print(os.listdir(project_root))
     if args.mode == "train":
         is_training = True
@@ -472,7 +480,10 @@ def main():
     config["loss"] = {"trade_off": 1.0}
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
-
+    # run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
+    #run = Run(repo="/mnt/sdc2/liangjun/projects/liangjun/aim_med",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
+    run = Run()
+    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number
     if "Xception" in args.arch:
         config["network"] = \
             {"name": network.XceptionFc,
@@ -522,16 +533,20 @@ def main():
 
     config["out_file"].write(str(config))
     config["out_file"].flush()
+    
     print("source_path", source_input)
     print("target_path", target_input)
     # print('GPU', os.environ["CUDA_VISIBLE_DEVICES"], config["gpu"])
-
+    hparams =args.__dict__
+    # hparams.pop("network")
+    # hparams.pop("out_file")
+    
+    run["hparams"]=hparams
     ####################################
     # Dump arguments #
     ####################################
     with open(config["logs_path"] + "args.yml", "w") as f:
         yaml.dump(args, f)
-
     dset_loaders = data_setup(config)
 
     if is_training:
@@ -541,13 +556,13 @@ def main():
         print("=" * 50)
         print()
 
-        train(config, dset_loaders)
+        train(config, dset_loaders,run)
         print()
         print("=" * 50)
         print(" " * 15, "Testing Started")
         print("=" * 50)
         print()
-        test(config, dset_loaders)
+        test(config, dset_loaders,run)
     else:
         print()
         print("=" * 50)
@@ -555,7 +570,7 @@ def main():
         print("=" * 50)
         print()
 
-        test(config, dset_loaders, model_path_for_testing=model_path_for_testing)
+        test(config, dset_loaders,run, model_path_for_testing=model_path_for_testing)
 
 
 if __name__ == "__main__":
