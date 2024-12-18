@@ -577,11 +577,7 @@ def main():
     config["loss"] = {"trade_off": 1.0}
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
-    # run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="Medical-Domain", log_system_params=True)
-    run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="MedicalDomain", log_system_params=True)
-    
-    # run = Run(repo="/mnt/sdc2/liangjun/projects/liangjun/aim_med",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
-    #run = Run()
+    run = Run(experiment="MedicalDomain", log_system_params=True)
     run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \
