@@ -72,6 +72,7 @@ class ResNetFc(nn.Module):
     def __init__(self, resnet_name, use_bottleneck=True, bottleneck_dim=256, new_cls=False, class_num=1000):
         super(ResNetFc, self).__init__()
         model_resnet = resnet_dict[resnet_name](pretrained=True)
+        self.thresholds = nn.Parameter(torch.zeros((1,class_num)))
         self.conv1 = model_resnet.conv1
         self.bn1 = model_resnet.bn1
         self.relu = model_resnet.relu
@@ -128,6 +129,7 @@ class ResNetFc(nn.Module):
             else:
                 parameter_list = [{"params": self.feature_layers.parameters(), "lr_mult": 1, 'decay_mult': 2}, \
                                   {"params": self.fc.parameters(), "lr_mult": 10, 'decay_mult': 2}]
+            parameter_list.append({"params": [self.thresholds], "lr_mult": 1, 'decay_mult': 2})
         else:
             parameter_list = [{"params": self.parameters(), "lr_mult": 1, 'decay_mult': 2}]
         return parameter_list
@@ -183,6 +185,7 @@ class XceptionFc(nn.Module):
         # model_xception = xception(pretrained= True)
         model_xception = xception(num_classes=1000, pretrained='imagenet')
         print(class_num)
+        self.thresholds = nn.Parameter(torch.zeros((1,class_num)))
         # model_xception = models.resnet_dict[resnet_name](pretrained=True)
         self.conv1 = model_xception.conv1
         self.bn1 = model_xception.bn1
@@ -269,8 +272,13 @@ class XceptionFc(nn.Module):
             else:
                 parameter_list = [{"params": self.feature_layers.parameters(), "lr_mult": 1, 'decay_mult': 2}, \
                                   {"params": self.fc.parameters(), "lr_mult": 10, 'decay_mult': 2}]
+            
+            parameter_list.append({"params": [self.thresholds], "lr_mult": 1, 'decay_mult': 2})
         else:
             parameter_list = [{"params": self.parameters(), "lr_mult": 1, 'decay_mult': 2}]
+        # for param in self.parameters():
+        #      print(type(param), param.size())
+        # # parameter_list.append()
         return parameter_list
 
 
@@ -285,7 +293,7 @@ class Inception3Fc(nn.Module):
         super(Inception3Fc, self).__init__()
 
         model_inception = inception_v3(pretrained=True)
-
+        self.thresholds = nn.Parameter(torch.zeros((1,class_num)))
         self.aux_logits = aux_logits
         self.transform_input = transform_input
         self.Conv2d_1a_3x3 = BasicConv2d(3, 32, kernel_size=3, stride=2)
@@ -375,6 +383,7 @@ class Inception3Fc(nn.Module):
             else:
                 parameter_list = [{"params": self.feature_layers.parameters(), "lr_mult": 1, 'decay_mult': 2}, \
                                   {"params": self.fc.parameters(), "lr_mult": 10, 'decay_mult': 2}]
+            parameter_list.append({"params": [self.thresholds], "lr_mult": 1, 'decay_mult': 2})
         else:
             parameter_list = [{"params": self.parameters(), "lr_mult": 1, 'decay_mult': 2}]
         return parameter_list
@@ -403,9 +412,9 @@ from torch.nn import init
 import torch
 
 __all__ = ['xception']
-
 model_urls = {
     'xception': 'https://www.dropbox.com/s/1hplpzet9d7dv29/xception-c0a72b38.pth.tar?dl=1'
+    #  'xception':'https://yinghe-aim.obs.cn-east-3.myhuaweicloud.com:443/xception-c0a72b38.pth%20%281%29.tar'
 }
 
 
@@ -580,6 +589,7 @@ def xception(pretrained=False, **kwargs):
 
     model = Xception(**kwargs)
     if pretrained:
+        # model.load_state_dict(model_zoo.load_url(model_urls['xception']))
         model.load_state_dict(model_zoo.load_url(model_urls['xception']))
     return model
 ########################################################################################################################

@@ -9,7 +9,7 @@ import numpy as np
 from scipy.spatial.distance import cdist
 from sklearn.metrics import confusion_matrix
 
-
+from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score
 # def comepute_class_weight_pytorch():
 #     dat_list = open(config["data"]["source"]["list_path"]).readlines()
 #     lables = [int(line.split(" ")[1]) for line in dat_list]
@@ -171,9 +171,10 @@ def testing_sperm_slides(loader, model, logs_path, slide_annotation_file_path, n
 
     f.close()
 
-def class_5_to2(all_label_numpy,predict_numpy):
+def class_5_to2(all_label_numpy,predict_numpy,all_output=None):
     preds_bnb_logits = []
     y_real_bnb_logits = []
+    auc= None
     for i in range(len(all_label_numpy)):
         # print(all_label_numpy)
         if (all_label_numpy[i] < 2):
@@ -187,8 +188,17 @@ def class_5_to2(all_label_numpy,predict_numpy):
             y_pred_bnb_each = 0
         else:
             y_pred_bnb_each = 1
+            
 
         preds_bnb_logits.append(y_pred_bnb_each)
+    
+    true_output= all_output[:,2:]
+    true_output, _ = torch.max(true_output, 1)
+    auc=roc_auc_score(y_real_bnb_logits, true_output.cpu().numpy())
+       
+    precision=precision_score(y_real_bnb_logits,preds_bnb_logits)
+    recall=recall_score(y_real_bnb_logits,preds_bnb_logits)
+    f1=f1_score(y_real_bnb_logits,preds_bnb_logits)
     # preds_bnb_logits = np.array(preds_bnb_logits)
     # y_real_bnb_logits = np.array(y_real_bnb_logits)
     # y_real_bnb = np.argmax(y_real_bnb_logits, axis=-1)
@@ -209,7 +219,7 @@ def class_5_to2(all_label_numpy,predict_numpy):
     acc = acc  / sum_
     print("2 class Accuracy = ", acc)
 
-    return cm_bnb, acc
+    return cm_bnb, acc,auc,precision,recall ,f1
 
 def validation_loss(loader, model, num_classes, logs_path, data_name='valid_source', dset="",num_iterations=0, is_training=True,
                     ret_cm=False):
@@ -240,10 +250,9 @@ def validation_loss(loader, model, num_classes, logs_path, data_name='valid_sour
 
     all_output = all_output.float()
     _, predict = torch.max(all_output, 1)
-
     all_label = all_label.float()
     val_accuracy = torch.sum(torch.squeeze(predict).float() == all_label).item() / float(all_label.size()[0])
-
+    
     all_output_numpy = all_output.numpy()
     predict_numpy = predict.numpy()
 
@@ -265,14 +274,22 @@ def validation_loss(loader, model, num_classes, logs_path, data_name='valid_sour
     val_info = {"val_accuracy": val_accuracy, "val_loss": val_loss}
 
     if num_classes == 5:
-        cm_bnb, acc_2_class = class_5_to2(all_label_numpy=all_label.numpy(), predict_numpy=predict_numpy)
+        cm_bnb, acc_2_class,auc,precision,recall ,f1 = class_5_to2(all_label_numpy=all_label.numpy(), predict_numpy=predict_numpy,all_output=all_output)
 
-        val_info = {**val_info, "cm_bnb": cm_bnb, "val_acc_2_class": acc_2_class}
+        val_info = {**val_info, "cm_bnb": cm_bnb, "val_acc_2_class": acc_2_class,"val_auc_2_class":auc,"val_precision_2_class":precision
+                    ,"val_recall_2_class":recall
+                     ,"val_f1_2_class":f1}
     elif num_classes == 2:
-
-        val_info = {**val_info,  "val_acc_2_class": val_accuracy}
-
-
+        true_output= all_output[:,1]
+        auc=roc_auc_score(all_label, true_output)
+       
+        precision=precision_score(all_label,predict)
+        recall=recall_score(all_label, predict)
+        f1=f1_score(all_label, predict)
+        val_info = {**val_info,  "val_acc_2_class": val_accuracy,"val_auc_2_class":auc,"val_precision_2_class":precision
+                    ,"val_recall_2_class":recall
+                     ,"val_f1_2_class":f1
+                    }
     if ret_cm:
         val_info = {**val_info, "conf_mat": conf_mat}
     return val_info

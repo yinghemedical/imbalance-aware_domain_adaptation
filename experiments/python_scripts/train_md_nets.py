@@ -16,7 +16,6 @@ import helper_utils.network as network
 # import helper_utils.pre_process as prep
 import helper_utils.pre_process_old as prep
 import yaml
-
 from torch.utils.data import DataLoader
 import helper_utils.lr_schedule as lr_schedule
 from helper_utils.data_list_m import ImageList
@@ -68,7 +67,16 @@ def data_setup(config):
 
     return dset_loaders
 
-
+class ImplementationNet(nn.DataParallel):
+    def __init__(self, model:nn.DataParallel,num_classes):
+        super(ImplementationNet, self).__init__(model)
+        self.model=model
+        self.thresholds=nn.Parameter(torch.zeros(num_classes))
+        # optimizer = optim.Adam(model.parameters(), lr=lr)
+       
+    def forward(self, inputs_source):
+        features_source, outputs_source = self.model(inputs_source)
+        return features_source - self.thresholds ,outputs_source
 def network_setup(config):
     class_num = config["network"]["params"]["class_num"]
 
@@ -89,6 +97,7 @@ def network_setup(config):
     else:
         base_network = net_config["name"](**net_config["params"])
         base_network = base_network.cuda()
+    # base_network = ImplementationNet(base_network,class_num)
     ad_net = network.AdversarialNetwork(base_network.output_num() * class_num, 1024)
     ad_net = ad_net.cuda()
     parameter_list = base_network.get_parameters() + ad_net.get_parameters()
@@ -108,7 +117,9 @@ def network_setup(config):
         base_network = nn.DataParallel(base_network, device_ids=[int(i) for i in gpus])
 
     return base_network, ad_net, schedule_param, lr_scheduler, optimizer
-
+# 定义转换：将类别1、2和3映射到新类别0，将类别4和5映射到新类别1
+def reduce_to_two_classes(labels):
+    return (labels < 3).long()
 
 def train(config, dset_loaders,run:Run):
     # class_imb_weight = torch.FloatTensor(comepute_class_weight_pytorch()).cuda()
@@ -118,12 +129,15 @@ def train(config, dset_loaders,run:Run):
     early_stopping = EarlyStopping(patience=config["patience"], verbose=True)
 
     base_network, ad_net, schedule_param, lr_scheduler, optimizer = network_setup(config)
-
+    
     ## train
     len_train_source = len(dset_loaders["source"])
     len_train_target = len(dset_loaders["target"])
     len_train_valid_source = len(dset_loaders["valid_source"])
-
+    cls_criterion = nn.CrossEntropyLoss()
+    adv_criterion = nn.BCEWithLogitsLoss()
+    fullSize=(config["network"]["params"]["class_num"],)
+    thresholds = nn.Parameter(torch.full(fullSize,0.5))
     best_loss_valid = np.infty  # total
 
     for itr in range(config["num_iterations"]):
@@ -149,7 +163,8 @@ def train(config, dset_loaders,run:Run):
 
 
             print_msg("Iteration: " + str(itr) + "/"+ str(config["num_iterations"])+ " | Val loss: "+ str(val_info['val_loss'])+
-                  " | Val Accuracy: "+ str(val_info['val_accuracy'])
+                  " | Val Accuracy: "+ str(val_info['val_accuracy'])+" | val_auc_2_class "+ str(val_info['val_auc_2_class']) +" | val_precision_2_class "+ str(val_info['val_precision_2_class'])+
+                " | val_recall_2_class "+ str(val_info['val_recall_2_class'])+" | val_f1_2_class "+ str(val_info['val_f1_2_class'])
                     ,config["out_file"])
             temp_model = nn.Sequential(base_network)
             if val_info['val_loss'] < best_loss_valid:
@@ -168,7 +183,7 @@ def train(config, dset_loaders,run:Run):
             print("Saving Model ...")
 
             break
-
+        loss_mode =config["loss_mode"]
         loss_params = config["loss"]
         ## train one iter
         base_network.train(True)
@@ -181,28 +196,76 @@ def train(config, dset_loaders,run:Run):
             iter_target = iter(dset_loaders["target"])
 
         inputs_source, labels_source,_ = next(iter_source)
+        # print(labels_source)
         inputs_target, labels_target,_ = next(iter_target)
-        inputs_source, inputs_target, labels_source = inputs_source.cuda(), inputs_target.cuda(), labels_source.cuda()
-        features_source, outputs_source = base_network(inputs_source)
-        features_target, outputs_target = base_network(inputs_target)
+        inputs_source, inputs_target, labels_source,labels_target = inputs_source.cuda(), inputs_target.cuda(), labels_source.cuda(),labels_target.cuda()
+        if loss_mode =="proposed":
+            features_source, outputs_source = base_network(inputs_source)
+            features_target, outputs_target = base_network(inputs_target)
+            outputs_source=outputs_source-base_network.thresholds
+            outputs_target=outputs_target-base_network.thresholds
+        else:
+            features_source, outputs_source = base_network(inputs_source)
+            features_target, outputs_target = base_network(inputs_target)
         features = torch.cat((features_source, features_target), dim=0)
         outputs = torch.cat((outputs_source, outputs_target), dim=0)
         softmax_out = nn.Softmax(dim=1)(outputs)
         entropy = Entropy(softmax_out)
         transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
+        if loss_mode =="default":
+            # transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
 
 
-        # labels_source_copy = [one_hot(int(i)) for i in labels_source_copy]
-        # print(labels_source_copy)
-        # weight_tensor = torch.FloatTensor(compute_class_weight(class_weight='balanced',classes=np.unique(labels_source_copy),y=labels_source_copy)).cuda()
-        # weight=class_imb_weight
-        classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
+            # labels_source_copy = [one_hot(int(i)) for i in labels_source_copy]
+            # print(labels_source_copy)
+            # weight_tensor = torch.FloatTensor(compute_class_weight(class_weight='balanced',classes=np.unique(labels_source_copy),y=labels_source_copy)).cuda()
+            # weight=class_imb_weight
+            classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
 
-        total_loss = loss_params["trade_off"] * transfer_loss + classifier_loss
-
+            total_loss = loss_params["trade_off"] * transfer_loss + classifier_loss
+        elif loss_mode =="proposed":
+            if config["network"]["params"]["class_num"]==5:
+                classifier_loss = cls_criterion(outputs_source, labels_source)
+                new_outputs_source = torch.zeros(outputs_source.shape[0], 2, requires_grad=True)
+                # 合并前2个类别
+                false_outputs_source,_=  torch.max(outputs_source[:, :2], dim=1)
+                true_outputs_source,_=  torch.max(outputs_source[:, 2:], dim=1)
+                new_outputs_source =torch.stack((false_outputs_source,true_outputs_source),dim=0)
+                
+                false_outputs_target,_=  torch.max(outputs_target[:, :2], dim=1)
+                true_outputs_target,_=  torch.max(outputs_target[:, 2:], dim=1)
+                new_outputs_target =torch.stack((false_outputs_target,true_outputs_target),dim=0)
+                
+                labels_source=labels_source>2
+                labels_source=torch.as_tensor(labels_source,dtype=torch.int64)
+                
+                
+                labels_target=labels_target>2
+                labels_target=torch.as_tensor(labels_target,dtype=torch.int64)
+                
+                
+                # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
+                # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
+                s_domain_labels = torch.ones(inputs_source.size(0),device=outputs_source.device)
+                t_domain_labels = torch.zeros(inputs_target.size(0),device=outputs_source.device)
+                # new_outputs_source=new_outputs_source[:,1]
+                adv_loss = adv_criterion(new_outputs_source[:,1], s_domain_labels) + adv_criterion(new_outputs_target[:,1], t_domain_labels)
+                
+            else:
+                classifier_loss = cls_criterion(outputs_source, labels_source)    
+                s_domain_labels = torch.ones(inputs_source.shape[0],device=outputs_source.device)
+                t_domain_labels = torch.zeros(inputs_source.shape[0],device=outputs_source.device)
+                # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
+                # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
+                adv_loss = adv_criterion(outputs_source[:,1], s_domain_labels) + \
+                        adv_criterion(outputs_target[:,1], t_domain_labels)
+             # Regularization
+            reg_loss = torch.norm(base_network.thresholds, p=2)
+            
+            # Total loss
+            total_loss = classifier_loss - config["lambda_adv"] * adv_loss + config["lambda_reg"] * reg_loss
         total_loss.backward()
         optimizer.step()
-
         ####################################
         # Save iteration logs#
         ####################################
@@ -217,6 +280,9 @@ def train(config, dset_loaders,run:Run):
                 'entropy': entropy_numpy.item(),
 
                 'valid_source_loss': val_info['val_loss'], 'valid_source_acc': val_info['val_accuracy'],
+                "val_auc_2_class ": val_info['val_auc_2_class'],"val_precision_2_class ": val_info['val_precision_2_class']
+                    ,"val_recall_2_class ": val_info['val_recall_2_class']
+                     ,"val_f1_2_class ": val_info['val_f1_2_class']
                 }
         if 'val_acc_2_class' in val_info:
             info['val_2class_accuracy']=val_info['val_acc_2_class']
@@ -261,16 +327,19 @@ def test(config, dset_loaders,run:Run, model_path_for_testing=None):
                                logs_path=config['logs_path'], is_training=config['is_training'])
 
     if config["network"]["params"]["class_num"] == 5 and 'embryo' in config["dataset"]:
-        print_str="Final Model "+ "| Val loss: "+str(val_info['val_loss'])+"| Val Accuracy: "+str(val_info['val_accuracy'])+"| 2 Class Val Accuracy: "+str(val_info['val_acc_2_class'])
+        print_str="Final Model "+ " | Val loss: "+str(val_info['val_loss'])+" | Val Accuracy: "+str(val_info['val_accuracy'])+" | 2 Class Val Accuracy: "+str(val_info['val_acc_2_class'])+" | val_auc_2_class "+ str(val_info['val_auc_2_class']) +" | val_precision_2_class "+ str(val_info['val_precision_2_class'])+" | val_recall_2_class "+ str(val_info['val_recall_2_class'])+" | val_f1_2_class "+ str(val_info['val_f1_2_class'])
         print(print_str)
         
         # aim_text = Text("Final Model ")
         # run.track(aim_text, name='text', step=0)
     else:
-        print_str="Final Model "+"| Val loss: "+str(val_info['val_loss'])+ "| Val Accuracy: "+str(val_info['val_accuracy'])
+        print_str="Final Model "+" | Val loss: "+str(val_info['val_loss'])+ " | Val Accuracy: "+str(val_info['val_accuracy'])+" | val_auc_2_class "+ str(val_info['val_auc_2_class']) +" | val_precision_2_class "+ str(val_info['val_precision_2_class'])+" | val_recall_2_class "+ str(val_info['val_recall_2_class'])+" | val_f1_2_class "+ str(val_info['val_f1_2_class'])
         print(print_str)
     aim_text = Text(print_str or "")
     run.track(aim_text, name='val result', step=0)
+    if "cm_bnb" in val_info:
+        del val_info["cm_bnb"]
+    run.track(val_info,context={"subset":"Final Model val result"}, step=0)
     if config["dataset"] == "sperm" and not config["data"]["target"]["labelled"]:
         testing_sperm_slides(dset_loaders, model, config['logs_path'], config["clinicians_annotation"],
                              config["network"]["params"]["class_num"])
@@ -280,13 +349,34 @@ def test(config, dset_loaders,run:Run, model_path_for_testing=None):
                                     logs_path=config['logs_path'], is_training=config['is_training'])
 
         if config["network"]["params"]["class_num"] == 5 and 'embryo' in config["dataset"]:
-            print_str="Final Model "+"| Test loss: "+str(test_info['val_loss'])+"| Test Accuracy: "+str(test_info['val_accuracy'])+ "| 2 Class Test Accuracy: "+ str(test_info['val_acc_2_class'])
+            print_str="Final Model "+" | Test loss: "+str(test_info['val_loss'])+" | Test Accuracy: "+str(test_info['val_accuracy'])+ " | 2 Class Test Accuracy: "+ str(test_info['val_acc_2_class'])+" | test_auc_2_class "+ str(test_info['val_auc_2_class']) +" | test_precision_2_class "+ str(test_info['val_precision_2_class'])+" | test_recall_2_class "+ str(test_info['val_recall_2_class'])+" | test_f1_2_class "+ str(test_info['val_f1_2_class'])
             print(print_str)
+            test_info={
+                "test_loss":test_info['val_loss'],
+                "test_accuracy":test_info['val_accuracy'],
+                "test_acc_2_class ":test_info['val_acc_2_class'],
+                "test_auc_2_class":test_info['val_auc_2_class'] ,
+                "test_precision_2_class": test_info['val_precision_2_class'],
+                "test_recall_2_class": test_info['val_recall_2_class'],
+                "test_f1_2_class":test_info['val_f1_2_class']
+            }
         else:
-            print_str="Final Model "+"| Test loss: "+str(test_info['val_loss'])+"| Test Accuracy: "+str(test_info['val_accuracy'])
+            print_str="Final Model "+" | Test loss: "+str(test_info['val_loss'])+" | Test Accuracy: "+str(test_info['val_accuracy'])+" | test_auc_2_class "+ str(test_info['val_auc_2_class']) +" | test_precision_2_class "+ str(test_info['val_precision_2_class'])+" | test_recall_2_class "+ str(test_info['val_recall_2_class'])+" | test_f1_2_class "+ str(test_info['val_f1_2_class'])
             print(print_str)
+            test_info={
+                "test_loss":test_info['val_loss'],
+                "test_accuracy":test_info['val_accuracy'],
+                "test_acc_2_class ":test_info['val_accuracy'],
+                "test_auc_2_class":test_info['val_auc_2_class'] ,
+                "test_precision_2_class":test_info['val_precision_2_class'],
+                "test_recall_2_class":test_info['val_recall_2_class'],
+                "test_f1_2_class":test_info['val_f1_2_class']
+            }
     aim_text = Text(print_str or "")
+    
     run.track(aim_text, name='test result', step=0)
+   
+    run.track(test_info,context={"subset":"Final Model test result"}, step=0)
 def parge_args():
     parser = argparse.ArgumentParser()
 
@@ -297,6 +387,8 @@ def parge_args():
     parser.add_argument('--gpu_id', type=str, nargs='?', default='1', help="device id to run")
 
     parser.add_argument('--lr', type=float)
+    parser.add_argument('--lambda_adv', type=float)
+    parser.add_argument('--lambda_reg', type=float)
     parser.add_argument('--arch', type=str)
     parser.add_argument('--gamma', type=float)
     parser.add_argument('--power', type=float)
@@ -324,6 +416,7 @@ def parge_args():
 
     parser.add_argument('--s_dset', type=str)
     parser.add_argument('--t_dset', type=str)
+    parser.add_argument('--loss_mode', type=str,default='default',)
 
     parser.add_argument('--test_dset_txt', type=str)
     parser.add_argument('--s_dset_txt', type=str)
@@ -338,13 +431,15 @@ def parge_args():
         seed=0,
         gpu_id="0",
         dset="embryo",
+        loss_mode="default",
         s_dset_txt='../../data/ed4/ed4_source.txt',
         sv_dset_txt='../../data/ed4/ed4_validation.txt',
         t_dset_txt='../../data/ed1/ed1_target.txt',
 
         s_dset="ed4",
         t_dset="ed1",
-
+        lambda_adv=0.001,
+        lambda_reg=0.01,
         lr=0.01,
         arch="Xception",
         gamma=0.0001,
@@ -354,7 +449,7 @@ def parge_args():
         nesterov=True,
         optimizer="SGD",
         batch_size=2,
-        batch_size_test=256,
+        batch_size_test=8,
         use_bottleneck=False,
         bottleneck_dim=256,
         new_cls=True,
@@ -446,6 +541,7 @@ def main():
     config['timestamp'] = timestamp
     config['trial_number'] = trial_number
     config["gpu"] = args.gpu_id
+    config["loss_mode"] = args.loss_mode
     config["num_iterations"] = args.num_iterations
     config["test_interval"] = args.test_interval
     config["snapshot_interval"] = args.snapshot_interval
@@ -476,14 +572,17 @@ def main():
 
     config["prep"] = {'params_source': {"resize_size": resize_size, "crop_size": args.crop_size, "dset": dataset},
                       'params_target': {"resize_size": resize_size, "crop_size": args.crop_size, "dset": dataset}}
-
+    config["lambda_adv"] = args.lambda_adv
+    config["lambda_reg"] = args.lambda_reg
     config["loss"] = {"trade_off": 1.0}
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
-    # run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
-    #run = Run(repo="/mnt/sdc2/liangjun/projects/liangjun/aim_med",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
-    run = Run()
-    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number
+    # run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="Medical-Domain", log_system_params=True)
+    run = Run(repo="aim://aim-server.imagecore.com.cn",experiment="MedicalDomain", log_system_params=True)
+    
+    # run = Run(repo="/mnt/sdc2/liangjun/projects/liangjun/aim_med",experiment="Medical-Domain-Adaptive-Neural-Networks", log_system_params=True)
+    #run = Run()
+    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \
             {"name": network.XceptionFc,
