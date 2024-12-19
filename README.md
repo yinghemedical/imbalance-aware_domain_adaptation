@@ -18,13 +18,13 @@
 - opencv-python 4.2.0.34
 - Matplotlib 3.0.0
 - NumPy 1.15.2
-- AIM 
+- aim 
 
 ## Dataset
 ### Download
 .txt files are lists for source and target domains 
 
-The Embryo, Malaria, Sperm  are available online [here](https://osf.io/3kc2d/) and Office-31 datasets from [here](https://people.eecs.berkeley.edu/~jhoffman/domainadapt/#datasets_code)  Once they are downloaded and extracted into your data directory, create .TXT files with filepaths and numeric annotation with space delimited.
+The Embryo are available online [here](https://osf.io/3kc2d/)  Once they are downloaded and extracted into your data directory, create .TXT files with filepaths and numeric annotation with space delimited.
 
 The data used for training and testing are suggested to be organized as follows:
 
@@ -49,19 +49,6 @@ DATA_ROOT_DIR/
             .   └── file_name.png
 ```
 
-### Nomenclature:
-
-|      |   |                                                 |
-|------|---|-------------------------------------------------|
-|      | D | [ S-Sperm, E-Embryo, M-Malaria/Redblood cells ] |
-| DYst | Y | [ M-Model, D-Dataset]                           |
-|      | s | [data distribution]                             |
-|      | t | [data distribution]                             |
-
-
-For dataset and imaging system nomenclature, s is graded from 4 through 1, with 4 being the dataset/imaging system of highest quality image (clinical microscope systems) and 1 being the dataset/imaging system of lowest quality (smartphone microscope systems). For example, ED4 denotes the embryo dataset imaged using a clinical Embryoscope that was used by embryologists for the annotations. 
-
- t is only used when defining domain adaption models, to denote source (s) and target (t) that were used when developing the model. For example, EM41 denotes a model (M) trained on embryo datasets (E) with Embryoscope images (4) as its source and smartphone images (1) as its target.
  
  
 ## Training
@@ -106,30 +93,6 @@ python -u experiments/python_scripts/train_md_nets_nos.py --mode train \
 To run all the experiments reported in the paper
 ```
 ./experiments/scripts/run_DATA_SET_NAME_experiments.sh 
-```
-
-The experiment log file and the saved models will be stored at ```./experiments/logs/EXPERIMENT_NAME/``` and ```./experiments/models/EXPERIMENT_NAME```
-## Testing
-
-You can test the datasets on reported models as follows
-```
-./experiments/scripts/test_DATASETNAME.sh 
-```
-
-
-## Citing 
-If you find our work useful in your research or if you use parts of this code please consider citing our paper in your research:
-```
-@article{Kanakasabapathy2021,
-  doi = {10.1038/s41551-021-00733-w},
-  url = {https://doi.org/10.1038/s41551-021-00733-w},
-  year = {2021},
-  month = jun,
-  publisher = {Springer Science and Business Media {LLC}},
-  author = {Manoj Kumar Kanakasabapathy and Prudhvi Thirumalaraju and Hemanth Kandula and Fenil Doshi and Anjali Devi Sivakumar and Deeksha Kartik and Raghav Gupta and Rohan Pooniwala and John A. Branda and Athe M. Tsibris and Daniel R. Kuritzkes and John C. Petrozza and Charles L. Bormann and Hadi Shafiee},
-  title = {Adaptive adversarial neural networks for the analysis of lossy and domain-shifted datasets of medical images},
-  journal = {Nature Biomedical Engineering}
-}
 ```
 
 ## License  
