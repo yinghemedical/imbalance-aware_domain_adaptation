@@ -1,11 +1,6 @@
 
-# MD-nets: Medical Domain Adaptive Neural Networks
-This is the Pytorch implementation for our paper [Adaptive adversarial neural networks for the analysis of lossy and domain-shifted datasets of medical images](https://www.nature.com/articles/s41551-021-00733-w), ***Nature Biomedical Engineering***
+该项目在 [Medical Domain Adaptive Neural Networks](https://github.com/shafieelab/Medical-Domain-Adaptive-Neural-Networks)代码的基础上做了一些修改
 
-**TLDR; Adversarial learning can be used to develop high-performing networks trained on unannotated medical images of varying image quality, and to adapt pretrained supervised networks to new domain-shifted datasets.**
-
-### Abstract 
-In machine learning for image-based medical diagnostics, supervised convolutional neural networks are typically trained with large and expertly annotated datasets obtained using high-resolution imaging systems. Moreover, the network’s performance can degrade substantially when applied to a dataset with a different distribution. Here, we show that adversarial learning can be used to develop high-performing networks trained on unannotated medical images of varying image quality. Specifically, we used low-quality images acquired using inexpensive portable optical systems to train networks for the evaluation of human embryos, the quantification of human sperm morphology and the diagnosis of malarial infections in the blood, and show that the networks performed well across different data distributions. We also show that adversarial learning can be used with unlabelled data from unseen domain-shifted datasets to adapt pretrained supervised networks to new distributions, even when data from the original distribution are not available. Adaptive adversarial networks may expand the use of validated neural-network models for the evaluation of data collected from multiple imaging systems of varying quality without compromising the knowledge stored in the network.
 
 
 
@@ -23,13 +18,7 @@ In machine learning for image-based medical diagnostics, supervised convolutiona
 - opencv-python 4.2.0.34
 - Matplotlib 3.0.0
 - NumPy 1.15.2
-
-## Framework 
-### MD-nets
-<img src="figures/1.jpg" alt="MD-nets" width="1429"/>
-
-### MD-nets(nos) without source data
-<img src="figures/2.png" alt="MD-nets(nos)" width="1428"/>
+- AIM 
 
 ## Dataset
 ### Download
