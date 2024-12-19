@@ -53,46 +53,35 @@ DATA_ROOT_DIR/
  
 ## Training
 
-You can train MD-nets as follows
+训练MD-nets
 ```python
-python -u experiments/python_scripts/train_md_nets.py --mode train \  
-              --seed seed 
-              --num_iterations 100000 --patience 5000 --test_interval 500 --snapshot_interval 1000 \  
-              --dset dataset_name --s_dset source_name --t_dset target_name \  
-              --lr "0.0001"  --batch_size 32 --optimizer SGD --use_bottleneck true --batch_size_test 256
-              --s_dset_txt "source_training.txt" 
-              --sv_dset_txt "source_validation.txt" \  
-              --t_dset_txt "target.txt" \  
-              --no_of_classes 5 \
-              --output_dir "experiments" \
-              --gpu_id 1 \
-              --arch Xception\  
-              --crop_size 224 --image_size 256
-              --target_labelled true  --trade_off 1.0 \  
-              --trained_model_path ""
+python -u experiments/python_scripts/train_md_nets.py --mode train \
+                                --seed $seed --num_iterations 50000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
+                                --dset embryo  --s_dset ed4 --t_dset ed4 --lr 0.001 \
+                                --lambda_reg 0.001 --lambda_adv 0.001 \
+                                --s_dset_txt "data/embryo/ed4/ed4_source_same_domain.txt" \
+                                --sv_dset_txt "data/embryo/ed4/ed4_validation.txt" \
+                                --t_dset_txt "data/embryo/ed4/ed4_target_same_domain.txt" --loss_mode default \
+                                --no_of_classes 5 --output_dir "experiments" --gpu_id 0 --arch ResNet50\
+                                            --crop_size 224 --image_size 256
 ```
-##### For MD-nets (Nos) as follows
+##### 训练改进方法
 ```python
-python -u experiments/python_scripts/train_md_nets_nos.py --mode train \  
-              --seed seed 
-              --num_iterations 10000 --patience 5000 --test_interval 500 --snapshot_interval 1000 \  
-              --dset embryo --s_dset source_name --t_dset target_name \  
-              --lr "0.0001"  --batch_size 32 --optimizer SGD --use_bottleneck true --batch_size_test 256
-              --tv_dset_txt "target_validation.txt" \  
-              --t_dset_txt "target.txt" \  
-              --no_of_classes 31 \
-              --output_dir "experiments" \
-              --gpu_id 0 \
-              --arch ResNet50\  
-              --crop_size 224 --image_size 256
-              --source_model_path "model.pth.tar"
-              --trade_off_cls 0.3 
+python -u experiments/python_scripts/train_md_nets.py --mode train \
+                                --seed $seed --num_iterations 50000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
+                                --dset embryo  --s_dset ed4 --t_dset ed4 --lr 0.001 \
+                                --lambda_reg 0.001 --lambda_adv 0.001 \
+                                --s_dset_txt "data/embryo/ed4/ed4_source_same_domain.txt" \
+                                --sv_dset_txt "data/embryo/ed4/ed4_validation.txt" \
+                                --t_dset_txt "data/embryo/ed4/ed4_target_same_domain.txt" --loss_mode proposed \
+                                --no_of_classes 5 --output_dir "experiments" --gpu_id 0 --arch ResNet50\
+                                            --crop_size 224 --image_size 256
 ```
 
 ### Automated execution
 To run all the experiments reported in the paper
 ```
-./experiments/scripts/run_DATA_SET_NAME_experiments.sh 
+./experiments/scripts/run_embryo_experiments.sh
 ```
 
 ## License  
