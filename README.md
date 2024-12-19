@@ -53,7 +53,7 @@ DATA_ROOT_DIR/
  
 ## Training
 
-训练MD-nets
+训练baseline
 ```python
 python -u experiments/python_scripts/train_md_nets.py --mode train \
                                 --seed $seed --num_iterations 50000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
@@ -65,7 +65,7 @@ python -u experiments/python_scripts/train_md_nets.py --mode train \
                                 --no_of_classes 5 --output_dir "experiments" --gpu_id 0 --arch ResNet50\
                                             --crop_size 224 --image_size 256
 ```
-##### 训练改进方法
+##### 训练proposed
 ```python
 python -u experiments/python_scripts/train_md_nets.py --mode train \
                                 --seed $seed --num_iterations 50000 --patience 2000 --test_interval 50 --snapshot_interval 1000 \
