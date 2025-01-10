@@ -149,7 +149,7 @@ You can cite this work using the following BibTeX entry:
       primaryClass={cs.CV},
       url={https://arxiv.org/abs/2501.04958}, 
 }
-
+```bibtex
 
 ---
 
