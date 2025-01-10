@@ -136,6 +136,12 @@ For any inquiries or questions:
 
 ---
 
+## Acknowledgements
+This project is built upon the code from [Medical Domain Adaptive Neural Networks](https://github.com/shafieelab/Medical-Domain-Adaptive-Neural-Networks). We thank the original authors for making their code publicly available, and we have made some modifications based on their work.
+
+---
+
+
 ## References
 You can cite this work using the following BibTeX entry:
 
@@ -149,9 +155,6 @@ You can cite this work using the following BibTeX entry:
       primaryClass={cs.CV},
       url={https://arxiv.org/abs/2501.04958}, 
 }
-```bibtex
+```
 
----
 
-## Acknowledgements
-This project is built upon the code from [Medical Domain Adaptive Neural Networks](https://github.com/shafieelab/Medical-Domain-Adaptive-Neural-Networks). We thank the original authors for making their code publicly available, and we have made some modifications based on their work.
