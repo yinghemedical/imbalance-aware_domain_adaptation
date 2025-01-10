@@ -1,4 +1,4 @@
-# Addressing Domain Shift via Imbalance-Aware Domain Adaptation in Embryo Development Assessment
+# [Addressing Domain Shift via Imbalance-Aware Domain Adaptation in Embryo Development Assessment](https://arxiv.org/abs/2501.04958)
 
 **Authors**  
 Lei Li, Xinglin Zhang, Jun Liang, and Tao Chen
@@ -131,6 +131,21 @@ This code is released under the **GNU GPLv3 License** and is intended for non-co
 For any inquiries or questions:
 - **Lei Li**: [lilei@di.ku.dk](mailto:lilei@di.ku.dk)  
 
+
+---
+
+## References
+You can cite this work using the following BibTeX entry:
+
+@misc{li2025addressingdomainshiftimbalanceaware,
+      title={Addressing Domain Shift via Imbalance-Aware Domain Adaptation in Embryo Development Assessment}, 
+      author={Lei Li and Xinglin Zhang and Jun Liang and Tao Chen},
+      year={2025},
+      eprint={2501.04958},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2501.04958}, 
+}
 
 ---
 
