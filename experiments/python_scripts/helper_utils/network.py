@@ -1,17 +1,17 @@
+import math
+import pdb
+
 import numpy as np
 import torch
 import torch.nn as nn
-import torchvision
-from torchvision import models
-from torch.autograd import Variable
-import math
-import pdb
 import torch.nn.utils.weight_norm as weightNorm
-
-from torchvision.models import inception, Inception3, inception_v3
-from torchvision.models.inception import BasicConv2d, InceptionA, InceptionB, InceptionC, InceptionAux, InceptionD, \
-    InceptionE
-
+import torchvision
+from torch.autograd import Variable
+from torchvision import models
+from torchvision.models import Inception3, inception, inception_v3
+from torchvision.models.inception import (BasicConv2d, InceptionA,
+                                          InceptionAux, InceptionB, InceptionC,
+                                          InceptionD, InceptionE)
 
 # from xception import xception
 
@@ -405,16 +405,17 @@ normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5],
 The resize parameter of the validation transform should be 333, and make sure to center crop at 299x299
 """
 import math
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
 from torch.nn import init
-import torch
 
 __all__ = ['xception']
 model_urls = {
-    'xception': 'https://www.dropbox.com/s/1hplpzet9d7dv29/xception-c0a72b38.pth.tar?dl=1'
-    #  'xception':'https://yinghe-aim.obs.cn-east-3.myhuaweicloud.com:443/xception-c0a72b38.pth%20%281%29.tar'
+    # 'xception': 'https://www.dropbox.com/s/1hplpzet9d7dv29/xception-c0a72b38.pth.tar?dl=1'
+     'xception':'https://yinghe-aim.obs.cn-east-3.myhuaweicloud.com:443/xception-c0a72b38.pth%20%281%29.tar'
 }
 
 

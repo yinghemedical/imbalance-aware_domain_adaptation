@@ -8,25 +8,25 @@ import time
 from collections import OrderedDict
 from datetime import datetime
 
+import helper_utils.lr_schedule as lr_schedule
+import helper_utils.network as network
+# import helper_utils.pre_process as prep
+import helper_utils.pre_process_old as prep
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import helper_utils.network as network
-# import helper_utils.pre_process as prep
-import helper_utils.pre_process_old as prep
 import yaml
-from torch.utils.data import DataLoader
-import helper_utils.lr_schedule as lr_schedule
+from aim import Run, Text
 from helper_utils.data_list_m import ImageList
-from aim import Run,Text
-import argparse
-
+from helper_utils.EarlyStopping import EarlyStopping
 from helper_utils.logger import Logger
 from helper_utils.sampler import ImbalancedDatasetSampler
+from helper_utils.tools import (Entropy, calc_transfer_loss, print_msg,
+                                testing_sperm_slides, validation_loss)
+from torch.utils.data import DataLoader
 
-from helper_utils.EarlyStopping import EarlyStopping
-from helper_utils.tools import testing_sperm_slides, validation_loss, calc_transfer_loss, Entropy ,print_msg
+from experiments.python_scripts.helper_utils.class_balanced_loss import CB_loss
 
 
 def data_setup(config):
@@ -134,12 +134,15 @@ def train(config, dset_loaders,run:Run):
     len_train_source = len(dset_loaders["source"])
     len_train_target = len(dset_loaders["target"])
     len_train_valid_source = len(dset_loaders["valid_source"])
+    ##针对每个类的统计
+    samples_per_cls=np.bincount([classid for file,classid in dset_loaders["source"].dataset.imgs], minlength=5)
     cls_criterion = nn.CrossEntropyLoss()
     adv_criterion = nn.BCEWithLogitsLoss()
     fullSize=(config["network"]["params"]["class_num"],)
     thresholds = nn.Parameter(torch.full(fullSize,0.5))
     best_loss_valid = np.infty  # total
-
+    cb_beta = 0.9999
+    cb_gamma = 2.0
     for itr in range(config["num_iterations"]):
         if itr % config["snapshot_interval"] == 0:
             base_network.train(False)
@@ -190,6 +193,8 @@ def train(config, dset_loaders,run:Run):
         ad_net.train(True)
         optimizer = lr_scheduler(optimizer, itr, **schedule_param)
         optimizer.zero_grad()
+        
+        
         if itr % len_train_source == 0:
             iter_source = iter(dset_loaders["source"])
         if itr % len_train_target == 0:
@@ -223,6 +228,10 @@ def train(config, dset_loaders,run:Run):
             classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
 
             total_loss = loss_params["trade_off"] * transfer_loss + classifier_loss
+        elif loss_mode =="CB":
+            # print(list(labels_source.cpu().numpy()))
+            classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
+            total_loss=CB_loss(labels_source, outputs_source, samples_per_cls, config["network"]["params"]["class_num"],"focal", cb_beta, cb_gamma)
         elif loss_mode =="proposed":
             if config["network"]["params"]["class_num"]==5:
                 classifier_loss = cls_criterion(outputs_source, labels_source)
@@ -577,8 +586,8 @@ def main():
     config["loss"] = {"trade_off": 1.0}
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
-    run = Run(experiment="MedicalDomain", log_system_params=True)
-    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-seed_"+str(args.seed)
+    run = Run(experiment="MedicalDomain_supplementary3", log_system_params=True)
+    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \
             {"name": network.XceptionFc,

@@ -33,10 +33,10 @@ lambda_advs=(0.0001 0.001 0.01 0.1)
 lambda_regs=(0.0001 0.001 0.01 0.1)
 archs=(Xception ResNet50 Inception)
 #default (SGD)
-optimizers=(SGD Adam)
-max_iterations=1000
+optimizers=(Adam)
+max_iterations=50000
 #default (default proposed)
-loss_modes=(default proposed CB)
+loss_modes=(default proposed)
 #default (false)
 use_bottlenecks=(true false)
 # lambda_adv=0.001
