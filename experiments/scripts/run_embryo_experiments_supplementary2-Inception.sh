@@ -23,20 +23,20 @@
 #            loss_modes=(CB)  
 #            use_bottlenecks=(true,false)
 
-gpu_id=3
+gpu_id=2
 export aim_database_type=MySql
 # lambda_adv=0.001
 # lambda_reg=0.01
 lr=0.001
 seed=0
-lambda_advs=(0.001)
-lambda_regs=(0.001)
-archs=(Xception ResNet50 Inception)
+lambda_advs=(0.0001 0.001 0.01 0.1)
+lambda_regs=(0.0001 0.001 0.01 0.1)
+archs=(Inception)
 #default (SGD)
-optimizers=(SGD Adam)
+optimizers=(Adam)
 max_iterations=50000
 #default (default proposed)
-loss_modes=(CB)
+loss_modes=(proposed)
 #default (false)
 use_bottlenecks=(true false)
 # lambda_adv=0.001

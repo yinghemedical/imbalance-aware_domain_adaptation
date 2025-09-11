@@ -3,6 +3,8 @@ import copy
 import csv
 import os
 import os.path as osp
+import sys
+sys.path.append(".")
 import statistics
 import time
 from collections import OrderedDict
@@ -135,7 +137,7 @@ def train(config, dset_loaders,run:Run):
     len_train_target = len(dset_loaders["target"])
     len_train_valid_source = len(dset_loaders["valid_source"])
     ##针对每个类的统计
-    samples_per_cls=np.bincount([classid for file,classid in dset_loaders["source"].dataset.imgs], minlength=5)
+    samples_per_cls=np.bincount([classid for file,classid in dset_loaders["source"].dataset.imgs], minlength=config["network"]["params"]["class_num"])
     cls_criterion = nn.CrossEntropyLoss()
     adv_criterion = nn.BCEWithLogitsLoss()
     fullSize=(config["network"]["params"]["class_num"],)
@@ -586,7 +588,7 @@ def main():
     config["loss"] = {"trade_off": 1.0}
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
-    run = Run(experiment="MedicalDomain_supplementary3", log_system_params=True)
+    run = Run(experiment="MedicalDomain_supplementary1", log_system_params=True)
     run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \

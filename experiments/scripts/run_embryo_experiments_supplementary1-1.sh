@@ -22,8 +22,8 @@
 #            max_iterations=50000 
 #            loss_modes=(CB)  
 #            use_bottlenecks=(true,false)
-
-gpu_id=3
+#增加default的 optimizers=SGD use_bottleneck=true
+gpu_id=1
 export aim_database_type=MySql
 # lambda_adv=0.001
 # lambda_reg=0.01
@@ -33,10 +33,10 @@ lambda_advs=(0.001)
 lambda_regs=(0.001)
 archs=(Xception ResNet50 Inception)
 #default (SGD)
-optimizers=(SGD Adam)
+optimizers=(Adam)
 max_iterations=50000
 #default (default proposed)
-loss_modes=(CB)
+loss_modes=(default)
 #default (false)
 use_bottlenecks=(true false)
 # lambda_adv=0.001
