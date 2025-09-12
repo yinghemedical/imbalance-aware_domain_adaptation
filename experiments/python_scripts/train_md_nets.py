@@ -220,7 +220,7 @@ def train(config, dset_loaders,run:Run):
         entropy = Entropy(softmax_out)
         transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
         #只有等于class_num==5时，use_multitask同时使用2分类和5分类时分别计算loss相加
-        if config["use_multitask"] and config["network"]["params"]["class_num"] and loss_mode =='proposed':
+        if config["use_multitask"] and config["network"]["params"]["class_num"] and loss_mode in ['proposed','default']:
             tasks=["5Class","2Class"]
             total_loss=None
             for task in tasks:
@@ -246,7 +246,7 @@ def train(config, dset_loaders,run:Run):
 
             pass
         else:
-            entropy, transfer_loss, classifier_loss, total_loss = loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source, labels_source, inputs_target, labels_target, outputs_source, outputs_target)
+            classifier_loss, total_loss = loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source, labels_source, inputs_target, labels_target, outputs_source, outputs_target)
         total_loss.backward()
         optimizer.step()
         ####################################
@@ -622,7 +622,7 @@ def main():
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
     run = Run(experiment="MedicalDomain_supplementary1", log_system_params=True)
-    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-seed_"+str(args.seed)
+    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-use_multitask_"+str(args.use_multitask)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \
             {"name": network.XceptionFc,
