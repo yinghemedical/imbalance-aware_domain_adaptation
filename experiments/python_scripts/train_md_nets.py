@@ -207,10 +207,10 @@ def train(config, dset_loaders,run:Run):
         inputs_target, labels_target,_ = next(iter_target)
         inputs_source, inputs_target, labels_source,labels_target = inputs_source.cuda(), inputs_target.cuda(), labels_source.cuda(),labels_target.cuda()
         if loss_mode =="proposed":
-            features_source, outputs_source = base_network(inputs_source)
-            features_target, outputs_target = base_network(inputs_target)
-            outputs_source=outputs_source-base_network.thresholds
-            outputs_target=outputs_target-base_network.thresholds
+                features_source, outputs_source = base_network(inputs_source)
+                features_target, outputs_target = base_network(inputs_target)
+                outputs_source=outputs_source-base_network.thresholds
+                outputs_target=outputs_target-base_network.thresholds
         else:
             features_source, outputs_source = base_network(inputs_source)
             features_target, outputs_target = base_network(inputs_target)
@@ -219,62 +219,34 @@ def train(config, dset_loaders,run:Run):
         softmax_out = nn.Softmax(dim=1)(outputs)
         entropy = Entropy(softmax_out)
         transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
-        if loss_mode =="default":
-            # transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
+        #只有等于class_num==5时，use_multitask同时使用2分类和5分类时分别计算loss相加
+        if config["use_multitask"] and config["network"]["params"]["class_num"] and loss_mode in ['proposed','default']:
+            tasks=["5Class","2Class"]
+            total_loss=None
+            for task in tasks:
+                if task=="5Class":
+                   classifier_loss, st_loss = loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source,labels_source,inputs_target, labels_target, outputs_source, outputs_target)
+                else:
+                    #切二分类头
+                    class_one_outputs_source=torch.mean(outputs_source[:, 0:2],dim=1,keepdim=True)
+                    class_two_outputs_source=torch.mean(outputs_source[:, 2:5],dim=1,keepdim=True)
+                    new_outputs_source= torch.cat([class_one_outputs_source, class_two_outputs_source], dim=1)
+                    class_one_outputs_target=torch.mean(outputs_target[:, 0:2],dim=1,keepdim=True)
+                    class_two_outputs_target=torch.mean(outputs_target[:, 2:5],dim=1,keepdim=True)
+                    new_outputs_target= torch.cat([class_one_outputs_target, class_two_outputs_target], dim=1)
+                    new_labels_source=  torch.as_tensor(labels_source>2,dtype=torch.int64)
+                    new_labels_target=torch.as_tensor(labels_target>2,dtype=torch.int64)
+                    new_samples_per_cls=[sum(samples_per_cls[:2]), sum(samples_per_cls[2:])]
+            # labels_target=torch.as_tensor(labels_target,dtype=torch.int64)
+                    _, st_loss = loss_func(config, base_network, transfer_loss, new_samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source, new_labels_source, inputs_target, new_labels_target, new_outputs_source, new_outputs_target)
+                if total_loss ==None:
+                    total_loss=st_loss
+                else:
+                    total_loss=total_loss+st_loss
 
-
-            # labels_source_copy = [one_hot(int(i)) for i in labels_source_copy]
-            # print(labels_source_copy)
-            # weight_tensor = torch.FloatTensor(compute_class_weight(class_weight='balanced',classes=np.unique(labels_source_copy),y=labels_source_copy)).cuda()
-            # weight=class_imb_weight
-            classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
-
-            total_loss = loss_params["trade_off"] * transfer_loss + classifier_loss
-        elif loss_mode =="CB":
-            # print(list(labels_source.cpu().numpy()))
-            classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
-            total_loss=CB_loss(labels_source, outputs_source, samples_per_cls, config["network"]["params"]["class_num"],"focal", cb_beta, cb_gamma)
-        elif loss_mode =="proposed":
-            if config["network"]["params"]["class_num"]==5:
-                classifier_loss = cls_criterion(outputs_source, labels_source)
-                new_outputs_source = torch.zeros(outputs_source.shape[0], 2, requires_grad=True)
-                # 合并前2个类别
-                false_outputs_source,_=  torch.max(outputs_source[:, :2], dim=1)
-                true_outputs_source,_=  torch.max(outputs_source[:, 2:], dim=1)
-                new_outputs_source =torch.stack((false_outputs_source,true_outputs_source),dim=0)
-                
-                false_outputs_target,_=  torch.max(outputs_target[:, :2], dim=1)
-                true_outputs_target,_=  torch.max(outputs_target[:, 2:], dim=1)
-                new_outputs_target =torch.stack((false_outputs_target,true_outputs_target),dim=0)
-                
-                labels_source=labels_source>2
-                labels_source=torch.as_tensor(labels_source,dtype=torch.int64)
-                
-                
-                labels_target=labels_target>2
-                labels_target=torch.as_tensor(labels_target,dtype=torch.int64)
-                
-                
-                # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
-                # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
-                s_domain_labels = torch.ones(inputs_source.size(0),device=outputs_source.device)
-                t_domain_labels = torch.zeros(inputs_target.size(0),device=outputs_source.device)
-                # new_outputs_source=new_outputs_source[:,1]
-                adv_loss = adv_criterion(new_outputs_source[:,1], s_domain_labels) + adv_criterion(new_outputs_target[:,1], t_domain_labels)
-                
-            else:
-                classifier_loss = cls_criterion(outputs_source, labels_source)    
-                s_domain_labels = torch.ones(inputs_source.shape[0],device=outputs_source.device)
-                t_domain_labels = torch.zeros(inputs_source.shape[0],device=outputs_source.device)
-                # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
-                # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
-                adv_loss = adv_criterion(outputs_source[:,1], s_domain_labels) + \
-                        adv_criterion(outputs_target[:,1], t_domain_labels)
-             # Regularization
-            reg_loss = torch.norm(base_network.thresholds, p=2)
-            
-            # Total loss
-            total_loss = classifier_loss - config["lambda_adv"] * adv_loss + config["lambda_reg"] * reg_loss
+            pass
+        else:
+            classifier_loss, total_loss = loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source, labels_source, inputs_target, labels_target, outputs_source, outputs_target)
         total_loss.backward()
         optimizer.step()
         ####################################
@@ -324,6 +296,64 @@ def train(config, dset_loaders,run:Run):
 
 
     return config
+
+def loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterion, adv_criterion, cb_beta, cb_gamma, loss_mode, loss_params, inputs_source, labels_source, inputs_target, labels_target, outputs_source, outputs_target):
+    
+    if loss_mode =="default":
+                # transfer_loss = calc_transfer_loss([features, softmax_out], ad_net, entropy, network.calc_coeff(itr))
+                # labels_source_copy = [one_hot(int(i)) for i in labels_source_copy]
+                # print(labels_source_copy)
+                # weight_tensor = torch.FloatTensor(compute_class_weight(class_weight='balanced',classes=np.unique(labels_source_copy),y=labels_source_copy)).cuda()
+                # weight=class_imb_weight
+        classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
+
+        total_loss = loss_params["trade_off"] * transfer_loss + classifier_loss
+    elif loss_mode =="CB":
+                # print(list(labels_source.cpu().numpy()))
+        classifier_loss = nn.CrossEntropyLoss()(outputs_source, labels_source)
+        total_loss=CB_loss(labels_source, outputs_source, samples_per_cls, len(samples_per_cls),"focal", cb_beta, cb_gamma)
+    elif loss_mode =="proposed":
+        if len(samples_per_cls)==5:
+            classifier_loss = cls_criterion(outputs_source, labels_source)
+            new_outputs_source = torch.zeros(outputs_source.shape[0], 2, requires_grad=True)
+                    # 合并前2个类别
+            false_outputs_source,_=  torch.max(outputs_source[:, :2], dim=1)
+            true_outputs_source,_=  torch.max(outputs_source[:, 2:], dim=1)
+            new_outputs_source =torch.stack((false_outputs_source,true_outputs_source),dim=0)
+                    
+            false_outputs_target,_=  torch.max(outputs_target[:, :2], dim=1)
+            true_outputs_target,_=  torch.max(outputs_target[:, 2:], dim=1)
+            new_outputs_target =torch.stack((false_outputs_target,true_outputs_target),dim=0)
+                    
+            labels_source=labels_source>2
+            labels_source=torch.as_tensor(labels_source,dtype=torch.int64)
+                    
+                    
+            labels_target=labels_target>2
+            labels_target=torch.as_tensor(labels_target,dtype=torch.int64)
+                    
+                    
+                    # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
+                    # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
+            s_domain_labels = torch.ones(inputs_source.size(0),device=outputs_source.device)
+            t_domain_labels = torch.zeros(inputs_target.size(0),device=outputs_source.device)
+                    # new_outputs_source=new_outputs_source[:,1]
+            adv_loss = adv_criterion(new_outputs_source[:,1], s_domain_labels) + adv_criterion(new_outputs_target[:,1], t_domain_labels)
+                    
+        else:
+            classifier_loss = cls_criterion(outputs_source, labels_source)    
+            s_domain_labels = torch.ones(inputs_source.shape[0],device=outputs_source.device)
+            t_domain_labels = torch.zeros(inputs_source.shape[0],device=outputs_source.device)
+                    # labels_source=torch.as_tensor(labels_source,dtype=torch.float32)
+                    # labels_target=torch.as_tensor(labels_target,dtype=torch.float32)
+            adv_loss = adv_criterion(outputs_source[:,1], s_domain_labels) + \
+                            adv_criterion(outputs_target[:,1], t_domain_labels)
+                # Regularization
+        reg_loss = torch.norm(base_network.thresholds, p=2)
+                
+                # Total loss
+        total_loss = classifier_loss - config["lambda_adv"] * adv_loss + config["lambda_reg"] * reg_loss
+    return classifier_loss,total_loss
 
 
 def test(config, dset_loaders,run:Run, model_path_for_testing=None):
@@ -410,6 +440,7 @@ def parge_args():
     parser.add_argument('--batch_size', type=int)
     parser.add_argument('--batch_size_test', type=int)
     parser.add_argument('--use_bottleneck', type=bool)
+    parser.add_argument('--use_multitask', type=bool)
     parser.add_argument('--bottleneck_dim', type=int)
 
     parser.add_argument('--new_cls', type=bool)
@@ -452,6 +483,7 @@ def parge_args():
         lambda_adv=0.001,
         lambda_reg=0.01,
         lr=0.01,
+        use_multitask=False,
         arch="Xception",
         gamma=0.0001,
         power=0.75,
@@ -557,6 +589,7 @@ def main():
     config["test_interval"] = args.test_interval
     config["snapshot_interval"] = args.snapshot_interval
     config["patience"] = args.patience
+    config["use_multitask"]=args.use_multitask
     config["is_training"] = is_training
 
     if not is_training:
@@ -589,7 +622,7 @@ def main():
     config["trained_model_path"] = args.trained_model_path
     config['no_of_layers_freeze'] = args.no_of_layers_freeze
     run = Run(experiment="MedicalDomain_supplementary1", log_system_params=True)
-    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-seed_"+str(args.seed)
+    run.name="mdnet-"+dataset+"-"+args.arch+"-"+trial_number +"-"+config["loss_mode"]+"-reg_"+str(args.lambda_reg)+"-adv_"+str(args.lambda_adv)+"-lr_"+str(args.lr)+"-use_bottleneck_"+str(args.use_bottleneck)+"-optimizer_"+str(args.optimizer)+"-use_multitask_"+str(args.use_multitask)+"-seed_"+str(args.seed)
     if "Xception" in args.arch:
         config["network"] = \
             {"name": network.XceptionFc,
