@@ -23,7 +23,7 @@
 #            loss_modes=(CB)  
 #            use_bottlenecks=(true,false)
 
-gpu_id=3
+gpu_id=0
 export aim_database_type=MySql
 # lambda_adv=0.001
 # lambda_reg=0.01
@@ -38,7 +38,7 @@ max_iterations=50000
 #default (default proposed)
 loss_modes=(proposed)
 #default (false)
-use_bottlenecks=(true false)
+use_bottlenecks=(true false) 
 # lambda_adv=0.001
 # lambda_reg=0.001
 # loss_modes=(proposed)
@@ -73,6 +73,7 @@ do
                                         --dset embryo  --s_dset ed4 --t_dset ed4 --lr $lr \
                                         --lambda_reg $lambda_reg --lambda_adv $lambda_adv \
                                         --optimizer $optimizer \
+                                        --use_bottleneck $use_bottleneck \
                                         --s_dset_txt "data/embryo/ed4/ed4_source_same_domain.txt" \
                                         --sv_dset_txt "data/embryo/ed4/ed4_validation.txt" \
                                         --t_dset_txt "data/embryo/ed4/ed4_target_same_domain.txt" --loss_mode $loss_mode \
@@ -85,6 +86,7 @@ do
                                         --dset embryo  --s_dset ed4 --t_dset ed3  --lr $lr \
                                         --lambda_reg $lambda_reg --lambda_adv $lambda_adv \
                                         --optimizer $optimizer \
+                                        --use_bottleneck $use_bottleneck \
                                         --s_dset_txt "data/embryo/ed4/ed4_source_2-class.txt" \
                                         --sv_dset_txt "data/embryo/ed4/ed4_validation_2-class.txt" \
                                         --t_dset_txt "data/embryo/ed3/ed3_target.txt" --loss_mode $loss_mode \
@@ -102,6 +104,7 @@ do
                                         --dset embryo --s_dset ed4 --t_dset $target  --lr $lr \
                                         --lambda_reg $lambda_reg --lambda_adv $lambda_adv \
                                         --optimizer $optimizer \
+                                        --use_bottleneck $use_bottleneck \
                                         --s_dset_txt "data/embryo/ed4/ed4_source_same_domain.txt" --sv_dset_txt "data/embryo/ed4/ed4_validation.txt" \
                                         --t_dset_txt "data/embryo/${target}/${target}_target.txt" --loss_mode $loss_mode \
                                         --no_of_classes 5 --output_dir "experiments"  --gpu_id $gpu_id --arch $arch\

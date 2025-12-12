@@ -238,12 +238,12 @@ def validation_loss(loader, model, num_classes, logs_path, data_name='valid_sour
             if start_test:
                 all_output = outputs.cpu()
                 all_label = labels
-                # all_path= paths.str()
+                all_path= paths
                 start_test = False
             else:
                 all_output = torch.cat((all_output, outputs.cpu()), 0)
                 all_label = torch.cat((all_label, labels), 0)
-                # all_path = all_path + paths
+                all_path = all_path + paths
     val_loss = nn.CrossEntropyLoss()(all_output, all_label)
 
     val_loss = val_loss.numpy().item()
@@ -266,7 +266,7 @@ def validation_loss(loader, model, num_classes, logs_path, data_name='valid_sour
         for value in range(len(all_output_numpy)):
             csv_writer.writerow(
                 [
-                    # all_path[value],
+                    all_path[value],
                  int(all_label[value].item()), predict_numpy[value]] +
                 list(map(lambda x: all_output_numpy[value][x], np.arange(num_classes))))
 

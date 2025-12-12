@@ -9,7 +9,7 @@ import statistics
 import time
 from collections import OrderedDict
 from datetime import datetime
-
+from BalancedSampler import BalancedSampler
 import helper_utils.lr_schedule as lr_schedule
 import helper_utils.network as network
 # import helper_utils.pre_process as prep
@@ -49,9 +49,15 @@ def data_setup(config):
 
     dsets["source"] = ImageList(open(data_config["source"]["list_path"]).readlines(),
                                 transform=prep_dict["source"])
-    dset_loaders["source"] = DataLoader(dsets["source"], batch_size=train_bs,
-                                        sampler=ImbalancedDatasetSampler(dsets["source"]),
-                                        shuffle=False, num_workers=4, drop_last=True)
+    if config["use_balanced_sampler"] and config["network"]["params"]["class_num"]==2:
+        dset_loaders["source"] = DataLoader(dsets["source"], batch_size=train_bs,
+                                            sampler=BalancedSampler(dsets["source"],batch_size=train_bs),
+                                            shuffle=False, num_workers=4, drop_last=True)
+    else:
+        dset_loaders["source"] = DataLoader(dsets["source"], batch_size=train_bs,
+                                            sampler=ImbalancedDatasetSampler(dsets["source"]),
+                                            shuffle=False, num_workers=4, drop_last=True)
+
     dsets["target"] = ImageList(open(data_config["target"]["list_path"]).readlines(),
                                 transform=prep_dict["target"], labelled=data_config["target"]["labelled"])
     dset_loaders["target"] = DataLoader(dsets["target"], batch_size=train_bs,
@@ -281,7 +287,12 @@ def train(config, dset_loaders,run:Run):
                  val_info['val_loss'], val_info['val_accuracy'],
 
                  ])
-
+    print()
+    print("=" * 50)
+    print(" " * 15, "Testing Started")
+    print("=" * 50)
+    print()
+    test(config,dset_loaders,run,model_path_for_testing=None,model=best_model)
     if config['dataset'] == 'malaria':
         base_network.train(False)
         current_model= nn.Sequential(base_network)
@@ -356,16 +367,17 @@ def loss_func(config, base_network, transfer_loss, samples_per_cls, cls_criterio
     return classifier_loss,total_loss
 
 
-def test(config, dset_loaders,run:Run, model_path_for_testing=None):
-    if model_path_for_testing:
-        model = torch.load(model_path_for_testing)
-    else:
+def test(config, dset_loaders,run:Run, model_path_for_testing=None,model=None):
+    if not model:
+        if model_path_for_testing:
+            model = torch.load(model_path_for_testing)
+        else:
 
-        model = torch.load(osp.join(config["model_path"], "best_model.pth.tar"))
+            model = torch.load(osp.join(config["model_path"], "best_model.pth.tar"))
 
     val_info = validation_loss(dset_loaders, model, dset=config['dataset'],
-                               num_classes=config["network"]["params"]["class_num"],
-                               logs_path=config['logs_path'], is_training=config['is_training'])
+                            num_classes=config["network"]["params"]["class_num"],
+                            logs_path=config['logs_path'], is_training=config['is_training'])
 
     if config["network"]["params"]["class_num"] == 5 and 'embryo' in config["dataset"]:
         print_str="Final Model "+ " | Val loss: "+str(val_info['val_loss'])+" | Val Accuracy: "+str(val_info['val_accuracy'])+" | 2 Class Val Accuracy: "+str(val_info['val_acc_2_class'])+" | val_auc_2_class "+ str(val_info['val_auc_2_class']) +" | val_precision_2_class "+ str(val_info['val_precision_2_class'])+" | val_recall_2_class "+ str(val_info['val_recall_2_class'])+" | val_f1_2_class "+ str(val_info['val_f1_2_class'])
@@ -442,7 +454,8 @@ def parge_args():
     parser.add_argument('--use_bottleneck', type=bool)
     parser.add_argument('--use_multitask', type=bool)
     parser.add_argument('--bottleneck_dim', type=int)
-
+    parser.add_argument('--use_balanced_sampler', type=bool)
+    
     parser.add_argument('--new_cls', type=bool)
     parser.add_argument('--no_of_classes', type=int)
     parser.add_argument('--image_size', type=int)
@@ -496,6 +509,7 @@ def parge_args():
         use_bottleneck=False,
         bottleneck_dim=256,
         new_cls=True,
+        use_balanced_sampler=False,
         no_of_classes=5,
         image_size=256,
         crop_size=224,
@@ -590,6 +604,7 @@ def main():
     config["snapshot_interval"] = args.snapshot_interval
     config["patience"] = args.patience
     config["use_multitask"]=args.use_multitask
+    config["use_balanced_sampler"]=args.use_balanced_sampler
     config["is_training"] = is_training
 
     if not is_training:
@@ -600,8 +615,8 @@ def main():
 
     print("num_iterations", config["num_iterations"])
 
-    log_output_path = log_output_dir_root + args.arch + '/' + trial_number + '/'
-    trial_results_path = models_output_dir_root + args.arch+"/" + trial_number + '/'
+    log_output_path = log_output_dir_root + args.arch+ '/' + trial_number +'/'+args.loss_mode +'/batch_size_'+str(args.batch_size)+ '/'
+    trial_results_path = models_output_dir_root + args.arch+"/" + trial_number +'/'+args.loss_mode+'/batch_size_'+str(args.batch_size)+ '/'
     config["model_path"] = trial_results_path
     config["logs_path"] = log_output_path
     if not os.path.exists(config["logs_path"]):
@@ -696,12 +711,12 @@ def main():
         print()
 
         train(config, dset_loaders,run)
-        print()
-        print("=" * 50)
-        print(" " * 15, "Testing Started")
-        print("=" * 50)
-        print()
-        test(config, dset_loaders,run)
+        # print()
+        # print("=" * 50)
+        # print(" " * 15, "Testing Started")
+        # print("=" * 50)
+        # print()
+        # test(config, dset_loaders,run)
     else:
         print()
         print("=" * 50)
